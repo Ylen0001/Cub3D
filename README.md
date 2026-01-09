@@ -32,4 +32,5 @@ Un mini-moteur 3D inspiré de Wolfenstein 3D, réalisé en C avec le moteur grap
 ### Jouer
 
 make
-./cub3D maps/OK_Big_official.cub 
+./cub3D 
+maps/OK_Big_official.cub 
