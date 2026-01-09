@@ -1,0 +1,63 @@
+{
+   ignore_mlx
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:mlx*
+}
+
+{
+   ignore_mlx_init
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:mlx_init
+}
+
+{
+   ignore_mlx_new_image
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:mlx_new_image
+}
+
+{
+   ignore_mlx_loop
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:mlx_loop
+}
+
+{
+   ignore_mlx_int_parse_xpm
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:mlx_int_parse_xpm
+}
+
+{
+   ignore_mlx_new_window
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:mlx_new_window
+}
+
+{
+   ignore_mlx_int_param_KeyPress
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:mlx_int_param_KeyPress
+}
+
+{
+   ignore_mlx_int_deal_shm
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:mlx_int_deal_shm
+}

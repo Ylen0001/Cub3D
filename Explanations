@@ -1,0 +1,228 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   Explanations                                       :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: ylenoel <ylenoel@student.42.fr>            +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2025/01/07 14:14:05 by ylenoel           #+#    #+#             */
+/*   Updated: 2025/01/28 16:35:07 by ylenoel          ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
+#include "../include/cub3d.h"
+#include "../minilibx/mlx.h"
+
+void	my_mlx_pixel_put(t_data *data, int x, int y, int color)
+{
+	char	*dst;
+
+	dst = data->addr + (y * data->line_length + x * (data->bpp / 8));
+	*(unsigned int*)dst = color;
+}
+
+void	draw_rectangle(t_data *img, int x, int y, int size, int color)
+{
+	int i = 0;
+	int j = 0;
+	
+	while (i < size)
+	{
+		j = 0;
+		while (j < size)
+		{
+			my_mlx_pixel_put(img, x + i, y + j, color);
+			j++; 
+		}
+		i++;
+	}
+}
+
+
+void draw_wall(t_data *img, int x, int start_y, int end_y, t_ray ray, MapDatas *map_data)
+{
+    int color;
+	int texture_height;
+	int texture_width;
+	float coef_coord;
+	if(ray.side == 1)
+	{
+		if(ray.ray_dir.y < 0)
+			ray.face = NORTH;
+		else
+			ray.face = SOUTH;
+	}
+	else if(ray.side == 0)
+	{
+		if(ray.ray_dir.x < 0)
+			ray.face = EAST;
+		else
+			ray.face = WEST;
+	}
+	texture_height = map_data->textures[ray.face].height;
+	texture_width = map_data->textures[ray.face].width;
+
+	/* 1 - Si la face du mur touché est horizontal oú vertical on prend la coordonnée x 
+	où y comme base pour calculer le coef (quelle colonne de la texture) on va display */
+	if (ray.side == 1) 
+		coef_coord = ray.x;
+	else
+		coef_coord = ray.y;
+
+	// 2 - On récupère la partie décimale pour savoir quelle bande verticale de la texture doit être display
+    int floored_x = floor(coef_coord); 
+	float coef = coef_coord - floored_x;
+
+	
+    int wall_height = end_y - start_y; // hauteur du mur dans la fenêtre
+
+    /* 3 - On doit scale la texture en fonction de la hauteur du mur. 
+	Si le hauteur est plus grande que celle de la texture, on 'étire' le nombre de pixel
+	Si elle est plus petite, on la réduit */
+    float scale = (float)texture_height / wall_height;
+
+
+	/* 4 - Ici, on va dessiner chaque pixel de la bande verticale correspondante de la texture
+	Trouver la bonne position dans la texture
+	Récupérer la couleur du pixel dans la texture
+	Dessiner ce pixel à la pos correspondante. */
+	
+    for (int y = start_y; y < end_y; y++) // On parcourt chaque pixel vertical de la bande 
+	{
+        if (x >= 0 && x < WIDTH && y >= 0 && y < HEIGHT) {
+			// On détermine la face de l'obstacle touché par le ray
+            
+			// Map screen y-coordinate to texture y-coordinate
+            int texture_y = (int)((y - start_y) * scale) % texture_height;
+            
+            // Texture x-coordinate is based on `coef` and texture width
+            int texture_x = (int)(coef * texture_width) % texture_width;
+
+            // Calculate the index in the texture array
+            size_t idx = (texture_y * texture_width) + texture_x;
+
+			
+            // Fetch the color from the texture
+            color = map_data->textures[ray.face].addr_int[idx];
+
+            // Draw the pixel
+            my_mlx_pixel_put(img, x, y, color);
+        }
+    }
+}
+
+
+
+// Fonction pour dessiner le plafond et le sol
+void draw_floor_ceiling(t_data *img, MapDatas *map_data) {
+    // Dessiner le plafond (en bleu)
+    for (int y = 0; y < HEIGHT / 2; y++) {
+        for (int x = 0; x < WIDTH; x++) {
+            my_mlx_pixel_put(img, x, y, map_data->floor_and_ceiling[0]);  // Bleu pour le plafond
+        }
+    }
+
+    // Dessiner le sol (en orange)
+    for (int y = HEIGHT / 2; y < HEIGHT; y++) {
+        for (int x = 0; x < WIDTH; x++) {
+            my_mlx_pixel_put(img, x, y, map_data->floor_and_ceiling[1]);  // Orange pour le sol
+        }
+    }
+}
+
+int render_frame(MapDatas *map_data)
+{
+    t_data  img;
+    t_ray   *ray = &map_data->rays;
+
+    // Création de l'image
+    img.img = mlx_new_image(map_data->mlx, WIDTH, HEIGHT);
+    img.addr = mlx_get_data_addr(img.img, &img.bpp, &img.line_length, &img.endian);
+
+    // Dessiner la carte et le plafond/sol
+    draw_floor_ceiling(&img, map_data);
+
+    // Raycasting
+    float player_angle = atan2(map_data->player.direction.y, map_data->player.direction.x);
+    float fov = M_PI / 3; // 60 degrés en radians
+    float angle_increment = fov / WIDTH;
+    float start_angle = player_angle - (fov / 2.0);
+    for (int i = 0; i < WIDTH; i++)
+    {
+        float current_angle = start_angle + i * angle_increment;
+        float distance = cast_ray_2(map_data, current_angle);
+        distance *= cos(current_angle - player_angle); // Correction fisheye
+        int line_height;
+        line_height = (int)(HEIGHT / distance);
+        if (line_height < 0)
+            line_height = 4096;
+        // printf("%d\n",line_height);
+        // if (line_height < 0)
+        //     line_height = 64 * 64;
+        // if (line_height > 512)
+        //     line_height = 512;
+        // if (line_height > 512)
+        //     line_height = 512;
+        // if (line_height <= 0)
+        // {
+        //     line_height = 64*64;
+        // }
+        int start_y = (HEIGHT - line_height) / 2;
+        int end_y = start_y + line_height;
+		draw_wall(&img, i, start_y, end_y, *ray, map_data);
+    }
+
+    // Mettre à jour l'image dans la fenêtre
+    mlx_put_image_to_window(map_data->mlx, map_data->mlx_win, img.img, 0, 0);
+
+    // Libérer l'image après l'avoir dessinée
+    mlx_destroy_image(map_data->mlx, img.img);
+
+    return 0;
+}
+
+
+
+
+
+
+
+void	draw_wall(t_data *img, int x, MapDatas *map_data)
+{
+	int		texture_height;
+	int		texture_width;
+	float	coef_coord;
+
+	map_data->img = *img;
+	coef_coord = 0.0;
+	setting_rays_face(map_data, &coef_coord);
+	texture_height = map_data->textures[map_data->rays.face].height;
+	texture_width = map_data->textures[map_data->rays.face].width;
+	calculus_pre_drawing(map_data, coef_coord, texture_height);
+	draw_wall_2(map_data, x, texture_height, texture_width);
+}
+
+void	draw_wall_2(MapDatas *map_data, int x, int text_height, int text_width)
+{
+	int		pixel;
+	int		y;
+	int		texture_y;
+	int		texture_x;
+	size_t	idx;
+
+	y = map_data->ray_start_y;
+	while (y < map_data->ray_end_y)
+	{
+		if (x >= 0 && x < WIDTH && y >= 0 && y < HEIGHT)
+		{
+			texture_y = (int)((y - map_data->ray_start_y) * map_data->scale)
+				% text_height;
+			texture_x = (int)(map_data->coef * text_width) % text_width;
+			idx = (texture_y * text_width) + texture_x;
+			pixel = map_data->textures[map_data->rays.face].addr_int[idx];
+			map_data->color = pixel;
+			my_mlx_pixel_put(&map_data->img, x, y, map_data->color);
+		}
+		y++;
+	}
+}
